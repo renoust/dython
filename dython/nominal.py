@@ -5,7 +5,7 @@ import seaborn as sns
 import scipy.stats as ss
 import matplotlib.pyplot as plt
 from collections import Counter
-from dython._private import convert, remove_incomplete_samples, replace_nan_with_value
+from dython._private import convert, remove_incomplete_samples, replace_nan_with_value, remove_small_bins
 
 REPLACE = 'replace'
 DROP = 'drop'
@@ -50,7 +50,7 @@ def conditional_entropy(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_RE
     return entropy
 
 
-def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALUE):
+def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALUE, min_bin_size=5, min_set_size=20):
     """
     Calculates Cramer's V statistic for categorical-categorical association.
     Uses correction from Bergsma and Wicher, Journal of the Korean Statistical Society 42 (2013): 323-328.
@@ -73,11 +73,38 @@ def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALU
     nan_replace_value : any, default = 0.0
         The value used to replace missing values with. Only applicable when nan_strategy is set to 'replace'.
     """
+    #print ("the x vector before", x.shape)
+    #print ("the y vector before", y.shape)
+
+    #old_x,old_y = x,y
+    #print 'b--'
+    
+    size = 0
+    x, y = remove_small_bins(x, y, min_bin_size)
+
     if nan_strategy == REPLACE:
         x, y = replace_nan_with_value(x, y, nan_replace_value)
     elif nan_strategy == DROP:
         x, y = remove_incomplete_samples(x, y)
-    confusion_matrix = pd.crosstab(x,y)
+
+    size = len(x)
+
+    if size < min_set_size:
+        #print "size is too small: ", len(x)#, len(y)
+        return -0.1, size
+
+    #print ("the x vector", len(x))
+    #print ("the y vector", len(y))
+
+
+    confusion_matrix = pd.crosstab(np.array(x, dtype=object),np.array(y, dtype=object))
+    #print(confusion_matrix.shape)
+    if confusion_matrix.shape[0] <= 1 or confusion_matrix.shape[1] <= 1 :
+        #print "not enough categories to compute: ",confusion_matrix.shape
+        return -0.3, size    
+
+    #print 'a--'
+
     chi2 = ss.chi2_contingency(confusion_matrix)[0]
     n = confusion_matrix.sum().sum()
     phi2 = chi2/n
@@ -85,7 +112,14 @@ def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALU
     phi2corr = max(0, phi2-((k-1)*(r-1))/(n-1))
     rcorr = r-((r-1)**2)/(n-1)
     kcorr = k-((k-1)**2)/(n-1)
-    return np.sqrt(phi2corr/min((kcorr-1),(rcorr-1)))
+    
+    #print ('phi2corr/rcorr/kcorr',phi2corr, rcorr, kcorr)
+
+    if min((kcorr-1),(rcorr-1)) == 0:
+        #print "not enough data: ", confusion_matrix.shape
+        return -0.5, size
+
+    return np.sqrt(phi2corr/min((kcorr-1),(rcorr-1))), size
 
 
 def theils_u(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALUE):

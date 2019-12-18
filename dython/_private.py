@@ -34,17 +34,14 @@ def convert(data, to):
 
 
 def remove_incomplete_samples(x, y=None):
-    #print 'before removing'
-    #print x
-    #print y
+    '''
+    Removes rows which contain null values
+    If x and y are provided, do it jointly
+    '''
     if y is not None:
         #x = [v if v is not None else np.nan for v in x]
         #y = [v if v is not None else np.nan for v in y]
         arr = np.array([x, y], dtype=object).transpose()
-        #print "remiving incomplete"
-        #print arr
-        #for e in arr:
-        #    print(e, pd.isnull(e))
         arr = arr[~pd.isnull(arr).any(axis=1)].transpose()
 
         #if isinstance(x, list):
@@ -56,10 +53,11 @@ def remove_incomplete_samples(x, y=None):
 
 
 
-'''
-turns values with occurrence below a threshold to nan
-'''
 def remove_small_bins(x, y, min_bin_size):
+    '''
+    Turns values with occurrence below a threshold to nan
+
+    '''
 
     values, count = np.unique(x, return_counts=True)
     xval_drop = []

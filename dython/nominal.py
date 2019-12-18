@@ -14,6 +14,9 @@ DROP_FEATURES = 'drop_features'
 SKIP = 'skip'
 DEFAULT_REPLACE_VALUE = 0.0
 
+NOT_ENOUGH_SAMPLES = 'not_enough_samples'
+NOT_ENOUGH_CATEGORIES = 'not_enough_categories'
+
 
 def conditional_entropy(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALUE):
     """
@@ -59,7 +62,7 @@ def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALU
     Original function taken from: https://stackoverflow.com/a/46498792/5863503
     Wikipedia: https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V
 
-    **Returns:** float in the range of [0,1]
+    **Returns:** float in the range of [0,1] and an integer, the considered sample size
 
     Parameters
     ----------
@@ -72,12 +75,11 @@ def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALU
         to replace all missing values with the nan_replace_value. Missing values are None and np.nan.
     nan_replace_value : any, default = 0.0
         The value used to replace missing values with. Only applicable when nan_strategy is set to 'replace'.
+    min_bin_size : int
+        The minimal number of elements a bin should contain
+    min_set_size : int
+        The minimal number of elements a whole set should contain
     """
-    #print ("the x vector before", x.shape)
-    #print ("the y vector before", y.shape)
-
-    #old_x,old_y = x,y
-    #print 'b--'
     
     size = 0
     x, y = remove_small_bins(x, y, min_bin_size)
@@ -90,20 +92,14 @@ def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALU
     size = len(x)
 
     if size < min_set_size:
-        #print "size is too small: ", len(x)#, len(y)
-        return -0.1, size
-
-    #print ("the x vector", len(x))
-    #print ("the y vector", len(y))
-
+        #sample size too small
+        return NOT_ENOUGH_SAMPLES, size
 
     confusion_matrix = pd.crosstab(np.array(x, dtype=object),np.array(y, dtype=object))
-    #print(confusion_matrix.shape)
     if confusion_matrix.shape[0] <= 1 or confusion_matrix.shape[1] <= 1 :
-        #print "not enough categories to compute: ",confusion_matrix.shape
-        return -0.3, size    
+        #number of bins too small
+        return NOT_ENOUGH_CATEGORIES, size    
 
-    #print 'a--'
 
     chi2 = ss.chi2_contingency(confusion_matrix)[0]
     n = confusion_matrix.sum().sum()
@@ -113,11 +109,10 @@ def cramers_v(x, y, nan_strategy=REPLACE, nan_replace_value=DEFAULT_REPLACE_VALU
     rcorr = r-((r-1)**2)/(n-1)
     kcorr = k-((k-1)**2)/(n-1)
     
-    #print ('phi2corr/rcorr/kcorr',phi2corr, rcorr, kcorr)
-
-    if min((kcorr-1),(rcorr-1)) == 0:
-        #print "not enough data: ", confusion_matrix.shape
-        return -0.5, size
+    #not enough data
+    #should not happend though
+    #if min((kcorr-1),(rcorr-1)) == 0:
+    #    return -0.5, size
 
     return np.sqrt(phi2corr/min((kcorr-1),(rcorr-1))), size
 
